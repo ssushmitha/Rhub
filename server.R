@@ -3,42 +3,48 @@ library(shinydashboard)
 library(forecast)
 library(tseries)
 
+######## Define Server logic required for prediction ########
 shinyServer(function(input, output){
-  #########################################################
+
   output$contents<- renderTable({
     req(input$file1)
     Upload_file <- read.csv(input$file1$datapath,
                      header = TRUE,
                      sep = ",",stringsAsFactors = FALSE
       )
-   # output$summ <- renderTable(summary(Upload_file))
-    ######################################################3
-    
+ 
+############################################################### 
+  
+  # output$summ <- renderTable(summary(Upload_file))
   # Upload_file <- read.csv(file.choose(), header = TRUE)     
   # head(Upload_file)
-    frequencyChoices <- c("Days" = "Daily",
+    
+##################################################################################    
+  # Define logic for UI functionalities    
+  frequencyChoices <- c("Days" = "Daily",
                           "Weeks" = "Weekly", 
                           "Months" = "Monthly")
-  Upload_file$New_date <- as.Date(Upload_file$DATE, "%d-%m-%Y")
   
   min_year <- as.numeric(format(min(Upload_file$New_date), "%Y"))
   min_month <- as.numeric(format(min(Upload_file$New_date), "%m"))
-  
   max_year <- as.numeric(format(max(Upload_file$New_date), "%Y"))
   max_month <- as.numeric(format(max(Upload_file$New_date), "%m"))
+  
+###########################   Upload file ########################################  
+  Upload_file$New_date <- as.Date(Upload_file$DATE, "%d-%m-%Y")
+    
+  Upload_file.ts <- ts(Upload_file$VALUE, start = c(min_year,min_month), end = c(max_year,max_month
+  ), frequency = 12 )
+   
   Upload_file.ts <- ts(Upload_file$VALUE, start = c(min_year,min_month), end = c(max_year,max_month
   ), frequency = 12 )
   
-  
-  
-  Upload_file.ts <- ts(Upload_file$VALUE, start = c(min_year,min_month), end = c(max_year,max_month
-  ), frequency = 12 )
-  
+  ########################## Holt Winter's model ###################################
   #plot(Upload_file.ts)
   hw.infl <- HoltWinters(Upload_file.ts)
   hw.infl
   
-  #############arima model################
+  ##########################     ARIMA Model     ###################################
   
   auto_upload <- auto.arima(Upload_file.ts)
   fit_resid = residuals(auto_upload)
@@ -46,8 +52,10 @@ shinyServer(function(input, output){
   Ljungboxtest <-Box.test(fit_resid, lag = 10, type = "Ljung-Box")
   
   forecast_upload <- forecast(auto_upload, h=20)
+    
+  output$autoarima <- renderPlot({plot(forecast_upload)})  
   
-  ######## Primitive basic models ##############
+  ########################   Primitive basic models ################################
   
   naive_uploadfile <- snaive(Upload_file.ts, h=20)
   mean_uploadfile <- meanf(Upload_file.ts, h=20)
@@ -57,7 +65,7 @@ shinyServer(function(input, output){
   output$mean.uploadfile <- renderTable(mean_uploadfile)
   output$drift.uploadfile <- renderTable(drift_uploadfile)
   
-  #############################################
+  ##################################################################################
   
   # infl.pred <- predict(hw.infl, n.ahead = 12, prediction.interval = TRUE)
   infl.pred <- forecast(hw.infl, h=12)
@@ -66,7 +74,7 @@ shinyServer(function(input, output){
   
   output$infl_pred <- renderTable(infl.pred)
   
-  ######################################################
+  ##########################       Plots        #####################################
   
   output$histogram <- renderPlot({ plot(mean_uploadfile, main ="")
     lines(naive_uploadfile$mean, col = "green")
@@ -76,10 +84,6 @@ shinyServer(function(input, output){
     lines(mean_uploadfile$mean, col = "green")
     lines(drift_uploadfile$mean, col = "red")})
   
-  ##########################################################
-  
-  output$autoarima <- renderPlot({plot(forecast_upload)})
-  
   ################################################################
   
   output$Holts_winters<- renderPlot({plot(infl.pred)
@@ -88,7 +92,7 @@ shinyServer(function(input, output){
     # lines(infl.pred[,3], col = "black")
   }) 
   
-  #Accuracy Functions#######################################
+  ########################    Accuracy Functions #######################################
   # Acc_holt <- accuracy(infl.pred)
   output$acc_holts <- renderTable(accuracy(infl.pred))
   output$acc_mean <- renderTable(accuracy(mean_uploadfile))
